@@ -412,28 +412,44 @@ common_business_questions:
       - "total accounts"
       - "number of companies"
       - "organization count"
-    query_pattern: "SELECT COUNT(*) FROM accounts"
+    query_pattern: "SELECT COUNT(*) FROM accounts;"
   
   - question: "Which accounts are on which plan?"
     synonyms:
       - "plan distribution"
       - "customer plans"
       - "tier breakdown"
-    query_pattern: "SELECT plan, COUNT(*) FROM accounts GROUP BY plan"
+    query_pattern: |
+      SELECT 
+        plan, 
+        COUNT(*) as account_count
+      FROM accounts
+      GROUP BY plan
+      ORDER BY account_count DESC;
   
   - question: "How many users belong to each account?"
     synonyms:
       - "team size per organization"
       - "members per company"
       - "user distribution"
-    query_pattern: "SELECT org_id, COUNT(*) FROM users GROUP BY org_id"
+    query_pattern: |
+      SELECT 
+        org_id, 
+        COUNT(*) as user_count
+      FROM users
+      GROUP BY org_id
+      ORDER BY user_count DESC;
   
   - question: "Which accounts have canceled subscriptions?"
     synonyms:
       - "churned customers"
       - "unsubscribed accounts"
       - "inactive subscriptions"
-    query_pattern: "SELECT DISTINCT org_id FROM subscriptions WHERE status = 'canceled'"
+    query_pattern: |
+      SELECT DISTINCT 
+        org_id
+      FROM subscriptions
+      WHERE status = 'canceled';
   
   - question: "How much revenue do we have?"
     synonyms:
@@ -441,42 +457,75 @@ common_business_questions:
       - "monthly recurring revenue"
       - "subscription revenue"
       - "total billing"
-    query_pattern: "SELECT SUM(monthly_price) FROM subscriptions WHERE status = 'active'"
+    query_pattern: |
+      SELECT 
+        SUM(monthly_price) as total_mrr,
+        SUM(monthly_price * 12) as total_arr,
+        COUNT(*) as subscription_count
+      FROM subscriptions
+      WHERE status = 'active';
   
   - question: "What are the most common events?"
     synonyms:
       - "top activities"
       - "popular actions"
       - "frequent event types"
-    query_pattern: "SELECT event_type, COUNT(*) FROM events GROUP BY event_type ORDER BY COUNT(*) DESC"
+    query_pattern: |
+      SELECT 
+        event_type, 
+        COUNT(*) as event_count
+      FROM events
+      GROUP BY event_type
+      ORDER BY event_count DESC;
   
   - question: "Which accounts have the most events?"
     synonyms:
       - "most active customers"
       - "engaged organizations"
       - "high-activity accounts"
-    query_pattern: "SELECT org_id, COUNT(*) FROM events GROUP BY org_id ORDER BY COUNT(*) DESC"
+    query_pattern: |
+      SELECT 
+        org_id, 
+        COUNT(*) as total_events
+      FROM events
+      GROUP BY org_id
+      ORDER BY total_events DESC;
   
   - question: "What is our unpaid invoice status?"
     synonyms:
       - "outstanding payments"
       - "unpaid bills"
       - "overdue invoices"
-    query_pattern: "SELECT COUNT(*) FROM invoices WHERE paid_at IS NULL"
+    query_pattern: |
+      SELECT 
+        COUNT(*) as unpaid_count,
+        SUM(amount) as total_unpaid_amount
+      FROM invoices
+      WHERE paid_at IS NULL;
   
   - question: "How many users registered last month?"
     synonyms:
       - "new user signups"
       - "recent member additions"
       - "account creations"
-    query_pattern: "SELECT COUNT(*) FROM users WHERE created_at >= DATE_TRUNC('month', NOW()) - INTERVAL '1 month'"
+    query_pattern: |
+      SELECT 
+        COUNT(*) as new_users
+      FROM users
+      WHERE created_at >= DATE_TRUNC('month', NOW()) - INTERVAL '1 month';
   
   - question: "Which product is most popular?"
     synonyms:
       - "best-selling product"
       - "most subscribed offering"
       - "top tier"
-    query_pattern: "SELECT product_id, COUNT(*) FROM subscriptions GROUP BY product_id ORDER BY COUNT(*) DESC"
+    query_pattern: |
+      SELECT 
+        product_id, 
+        COUNT(*) as subscription_count
+      FROM subscriptions
+      GROUP BY product_id
+      ORDER BY subscription_count DESC;
 
 common_metrics:
   - name: "ARR (Annual Recurring Revenue)"
@@ -506,3 +555,65 @@ common_metrics:
   - name: "Invoice Collection Rate"
     synonyms: ["payment rate", "invoice payment", "collection efficiency"]
     calculation: "COUNT(paid_at IS NOT NULL) / COUNT(*) FROM invoices"
+
+sql_style_guide: |
+  ## SQL Formatting Guidelines
+  
+  Always follow these formatting rules when generating SQL:
+  
+  ### Keywords (UPPERCASE)
+  - SELECT, FROM, WHERE, AND, OR, NOT
+  - JOIN, INNER JOIN, LEFT JOIN, RIGHT JOIN, FULL OUTER JOIN
+  - GROUP BY, ORDER BY, HAVING
+  - WITH, AS (for CTEs)
+  - CASE, WHEN, THEN, ELSE, END
+  - INSERT, UPDATE, DELETE, CREATE, DROP
+  - SUM, COUNT, AVG, MAX, MIN, DISTINCT
+  - LIMIT, OFFSET
+  - IS NULL, IS NOT NULL
+  
+  ### Identifiers (lowercase)
+  - Table names: accounts, users, subscriptions, invoices, events, products
+  - Column names: id, org_id, user_id, created_at, monthly_price, etc.
+  - Aliases: AS alias_name (keyword uppercase, name lowercase)
+  
+  ### Example Format:
+  ```sql
+  SELECT 
+    a.name,
+    COUNT(s.id) as subscription_count,
+    SUM(s.monthly_price) as total_mrr
+  FROM subscriptions s
+  JOIN accounts a ON s.org_id = a.id
+  WHERE s.status = 'active'
+  GROUP BY a.id, a.name
+  ORDER BY total_mrr DESC;
+  ```
+  
+  ### Complex Query Example with WITH:
+  ```sql
+  WITH monthly_revenue AS (
+    SELECT 
+      org_id,
+      DATE_TRUNC('month', created_at)::date as month,
+      SUM(monthly_price) as mrr
+    FROM subscriptions
+    WHERE status = 'active'
+    GROUP BY org_id, DATE_TRUNC('month', created_at)
+  )
+  SELECT 
+    org_id,
+    month,
+    mrr,
+    LAG(mrr) OVER (PARTITION BY org_id ORDER BY month) as previous_month_mrr
+  FROM monthly_revenue
+  ORDER BY org_id, month DESC;
+  ```
+  
+  ### Rules Summary:
+  ✓ UPPERCASE: All SQL keywords
+  ✓ lowercase: All table and column names
+  ✓ snake_case: For column names (user_id, created_at, monthly_price)
+  ✓ Indentation: 2 or 4 spaces for readability
+  ✓ Aliases: Use meaningful names (accounts AS a, subscriptions AS s)
+  ✓ Formatting: Multi-line queries for readability
