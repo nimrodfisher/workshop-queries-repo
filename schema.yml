@@ -1,0 +1,508 @@
+version: 2
+
+models:
+  - name: accounts
+    description: |
+      Core accounts/organizations table. Represents the top-level organization entity in the system.
+      All other entities (users, subscriptions, events) are associated with an account.
+    synonyms:
+      - organizations
+      - companies
+      - clients
+      - customers
+      - tenants
+    columns:
+      - name: id
+        description: Unique identifier for the account (UUID)
+        data_type: uuid
+        synonyms:
+          - account_id
+          - org_id
+          - organization_id
+          - company_id
+        constraints:
+          - type: primary_key
+          - type: not_null
+      - name: name
+        description: Account/organization name
+        data_type: text
+        synonyms:
+          - account_name
+          - org_name
+          - company_name
+          - customer_name
+      - name: industry
+        description: Industry classification for the account (e.g., SaaS, Finance, Healthcare)
+        data_type: text
+        synonyms:
+          - vertical
+          - sector
+          - business_type
+      - name: plan
+        description: Subscription plan tier (e.g., Free, Pro, Enterprise)
+        data_type: text
+        synonyms:
+          - tier
+          - subscription_plan
+          - pricing_tier
+          - subscription_tier
+      - name: created_at
+        description: Timestamp when the account was created
+        data_type: timestamp with time zone
+        synonyms:
+          - signup_date
+          - onboarded_at
+          - established_at
+        default: now()
+
+  - name: users
+    description: |
+      Users belonging to accounts. Each user is associated with exactly one account (org_id).
+      Tracks user profile information and role within the organization.
+    synonyms:
+      - team_members
+      - people
+      - employees
+      - members
+      - account_users
+    columns:
+      - name: id
+        description: Unique identifier for the user (UUID)
+        data_type: uuid
+        synonyms:
+          - user_id
+          - member_id
+        constraints:
+          - type: primary_key
+          - type: not_null
+      - name: org_id
+        description: Foreign key reference to the parent account
+        data_type: uuid
+        synonyms:
+          - account_id
+          - organization_id
+          - company_id
+        constraints:
+          - type: foreign_key
+            reference_table: accounts
+            reference_column: id
+            on_delete: CASCADE
+      - name: full_name
+        description: User's full name
+        data_type: text
+        synonyms:
+          - name
+          - user_name
+          - member_name
+      - name: email
+        description: User's email address
+        data_type: text
+        synonyms:
+          - email_address
+          - user_email
+      - name: role
+        description: User's role within the organization (e.g., admin, member, viewer)
+        data_type: text
+        synonyms:
+          - user_role
+          - permission_level
+          - access_level
+      - name: created_at
+        description: Timestamp when the user was created
+        data_type: timestamp with time zone
+        synonyms:
+          - signup_date
+          - joined_at
+          - registration_date
+        default: now()
+
+  - name: events
+    description: |
+      Event tracking table. Records user activities and system events.
+      Each event is associated with an organization and optionally a specific user.
+      The props column stores flexible JSON data specific to each event type.
+    synonyms:
+      - activities
+      - actions
+      - logs
+      - tracking_events
+      - event_logs
+      - user_activities
+    columns:
+      - name: id
+        description: Unique identifier for the event (auto-incrementing bigint)
+        data_type: bigint
+        synonyms:
+          - event_id
+        constraints:
+          - type: primary_key
+          - type: not_null
+      - name: org_id
+        description: Foreign key reference to the account/organization
+        data_type: uuid
+        synonyms:
+          - account_id
+          - organization_id
+          - company_id
+        constraints:
+          - type: foreign_key
+            reference_table: accounts
+            reference_column: id
+            on_delete: CASCADE
+      - name: user_id
+        description: Foreign key reference to the user who triggered the event (nullable)
+        data_type: uuid
+        synonyms:
+          - actor_id
+          - person_id
+          - member_id
+        constraints:
+          - type: foreign_key
+            reference_table: users
+            reference_column: id
+            on_delete: CASCADE
+      - name: event_type
+        description: Type/category of the event (e.g., login, signup, action_completed)
+        data_type: text
+        synonyms:
+          - type
+          - action
+          - activity_type
+          - event_name
+      - name: props
+        description: JSON object containing event-specific properties and metadata
+        data_type: jsonb
+        synonyms:
+          - properties
+          - metadata
+          - event_data
+          - payload
+      - name: occurred_at
+        description: Timestamp when the event occurred
+        data_type: timestamp with time zone
+        synonyms:
+          - timestamp
+          - event_time
+          - created_at
+          - date
+
+  - name: products
+    description: |
+      Product catalog. Defines the products available for subscription.
+      Products have monthly pricing and can be activated/deactivated.
+    synonyms:
+      - offerings
+      - services
+      - plans
+      - tiers
+      - items
+    columns:
+      - name: id
+        description: Unique identifier for the product (UUID)
+        data_type: uuid
+        synonyms:
+          - product_id
+          - offering_id
+          - item_id
+        constraints:
+          - type: primary_key
+          - type: not_null
+      - name: name
+        description: Product name
+        data_type: text
+        synonyms:
+          - product_name
+          - offering_name
+          - title
+      - name: price_monthly
+        description: Monthly subscription price in the organization's currency
+        data_type: numeric
+        synonyms:
+          - monthly_price
+          - monthly_cost
+          - monthly_fee
+          - price
+      - name: active
+        description: Whether the product is currently available for new subscriptions
+        data_type: boolean
+        synonyms:
+          - is_active
+          - enabled
+          - status
+        default: true
+
+  - name: subscriptions
+    description: |
+      Subscriptions table. Tracks which accounts are subscribed to which products.
+      Manages subscription lifecycle including start and cancellation dates.
+      Note: Product foreign key constraint is missing in the schema but should reference products(id).
+    synonyms:
+      - plans
+      - memberships
+      - purchases
+      - contracts
+      - agreements
+    columns:
+      - name: id
+        description: Unique identifier for the subscription (UUID)
+        data_type: uuid
+        synonyms:
+          - subscription_id
+          - membership_id
+          - plan_id
+        constraints:
+          - type: primary_key
+          - type: not_null
+      - name: org_id
+        description: Foreign key reference to the account/organization
+        data_type: uuid
+        synonyms:
+          - account_id
+          - organization_id
+          - company_id
+          - customer_id
+        constraints:
+          - type: foreign_key
+            reference_table: accounts
+            reference_column: id
+            on_delete: CASCADE
+      - name: product_id
+        description: Foreign key reference to the product (implied relationship to products table)
+        data_type: uuid
+        synonyms:
+          - offering_id
+          - plan_product_id
+      - name: status
+        description: Current subscription status (e.g., active, paused, canceled, trial)
+        data_type: text
+        synonyms:
+          - subscription_status
+          - state
+          - lifecycle_status
+      - name: started_at
+        description: Date when the subscription started
+        data_type: date
+        synonyms:
+          - start_date
+          - activation_date
+          - effective_date
+      - name: canceled_at
+        description: Date when the subscription was canceled (null if still active)
+        data_type: date
+        synonyms:
+          - cancellation_date
+          - end_date
+          - termination_date
+      - name: monthly_price
+        description: Agreed-upon monthly price for this subscription at the time of creation
+        data_type: numeric
+        synonyms:
+          - price_monthly
+          - monthly_cost
+          - contract_price
+          - monthly_fee
+
+  - name: invoices
+    description: |
+      Invoices table. Records billing invoices generated for subscriptions.
+      Tracks invoice amounts, issuance dates, and payment dates.
+    synonyms:
+      - bills
+      - receipts
+      - billing_records
+      - transactions
+    columns:
+      - name: id
+        description: Unique identifier for the invoice (UUID)
+        data_type: uuid
+        synonyms:
+          - invoice_id
+          - bill_id
+          - transaction_id
+        constraints:
+          - type: primary_key
+          - type: not_null
+      - name: subscription_id
+        description: Foreign key reference to the subscription
+        data_type: uuid
+        synonyms:
+          - plan_id
+          - membership_id
+        constraints:
+          - type: foreign_key
+            reference_table: subscriptions
+            reference_column: id
+      - name: amount
+        description: Invoice amount in the organization's currency
+        data_type: numeric
+        synonyms:
+          - invoice_amount
+          - total
+          - price
+          - cost
+      - name: issued_at
+        description: Date when the invoice was issued
+        data_type: date
+        synonyms:
+          - issue_date
+          - creation_date
+          - generated_at
+      - name: paid_at
+        description: Date when the invoice was paid (null if unpaid)
+        data_type: date
+        synonyms:
+          - payment_date
+          - paid_date
+          - settlement_date
+
+relationships:
+  - from_model: users
+    from_column: org_id
+    to_model: accounts
+    to_column: id
+    description: Each user belongs to exactly one account
+
+  - from_model: events
+    from_column: org_id
+    to_model: accounts
+    to_column: id
+    description: Each event is associated with an account
+
+  - from_model: events
+    from_column: user_id
+    to_model: users
+    to_column: id
+    description: Each event can be attributed to a user (optional)
+
+  - from_model: subscriptions
+    from_column: org_id
+    to_model: accounts
+    to_column: id
+    description: Each subscription belongs to an account
+
+  - from_model: subscriptions
+    from_column: product_id
+    to_model: products
+    to_column: id
+    description: Each subscription is for a specific product
+
+  - from_model: invoices
+    from_column: subscription_id
+    to_model: subscriptions
+    to_column: id
+    description: Each invoice is associated with a subscription
+
+notes: |
+  Schema Overview:
+  - Accounts are the top-level organizational unit
+  - Users and Events are associated with Accounts
+  - Subscriptions link Accounts to Products
+  - Invoices are generated from Subscriptions
+  - Deletion is cascading from Accounts to Users, Events, and Subscriptions
+
+  Data Quality Notes:
+  - Most columns are nullable; consider adding NOT NULL constraints where appropriate
+  - Subscription.product_id lacks an explicit foreign key constraint
+  - Consider adding unique constraints on emails or account names if needed
+  - Event timestamps (occurred_at) may have timezone implications depending on storage requirements
+
+common_business_questions:
+  - question: "How many customers/organizations do we have?"
+    synonyms:
+      - "total accounts"
+      - "number of companies"
+      - "organization count"
+    query_pattern: "SELECT COUNT(*) FROM accounts"
+  
+  - question: "Which accounts are on which plan?"
+    synonyms:
+      - "plan distribution"
+      - "customer plans"
+      - "tier breakdown"
+    query_pattern: "SELECT plan, COUNT(*) FROM accounts GROUP BY plan"
+  
+  - question: "How many users belong to each account?"
+    synonyms:
+      - "team size per organization"
+      - "members per company"
+      - "user distribution"
+    query_pattern: "SELECT org_id, COUNT(*) FROM users GROUP BY org_id"
+  
+  - question: "Which accounts have canceled subscriptions?"
+    synonyms:
+      - "churned customers"
+      - "unsubscribed accounts"
+      - "inactive subscriptions"
+    query_pattern: "SELECT DISTINCT org_id FROM subscriptions WHERE status = 'canceled'"
+  
+  - question: "How much revenue do we have?"
+    synonyms:
+      - "total MRR"
+      - "monthly recurring revenue"
+      - "subscription revenue"
+      - "total billing"
+    query_pattern: "SELECT SUM(monthly_price) FROM subscriptions WHERE status = 'active'"
+  
+  - question: "What are the most common events?"
+    synonyms:
+      - "top activities"
+      - "popular actions"
+      - "frequent event types"
+    query_pattern: "SELECT event_type, COUNT(*) FROM events GROUP BY event_type ORDER BY COUNT(*) DESC"
+  
+  - question: "Which accounts have the most events?"
+    synonyms:
+      - "most active customers"
+      - "engaged organizations"
+      - "high-activity accounts"
+    query_pattern: "SELECT org_id, COUNT(*) FROM events GROUP BY org_id ORDER BY COUNT(*) DESC"
+  
+  - question: "What is our unpaid invoice status?"
+    synonyms:
+      - "outstanding payments"
+      - "unpaid bills"
+      - "overdue invoices"
+    query_pattern: "SELECT COUNT(*) FROM invoices WHERE paid_at IS NULL"
+  
+  - question: "How many users registered last month?"
+    synonyms:
+      - "new user signups"
+      - "recent member additions"
+      - "account creations"
+    query_pattern: "SELECT COUNT(*) FROM users WHERE created_at >= DATE_TRUNC('month', NOW()) - INTERVAL '1 month'"
+  
+  - question: "Which product is most popular?"
+    synonyms:
+      - "best-selling product"
+      - "most subscribed offering"
+      - "top tier"
+    query_pattern: "SELECT product_id, COUNT(*) FROM subscriptions GROUP BY product_id ORDER BY COUNT(*) DESC"
+
+common_metrics:
+  - name: "ARR (Annual Recurring Revenue)"
+    synonyms: ["annual recurring revenue", "yearly revenue"]
+    calculation: "SUM(monthly_price * 12) WHERE status = 'active'"
+  
+  - name: "MRR (Monthly Recurring Revenue)"
+    synonyms: ["monthly recurring revenue", "monthly revenue", "total billing"]
+    calculation: "SUM(monthly_price) WHERE status = 'active'"
+  
+  - name: "Churn Rate"
+    synonyms: ["subscription churn", "cancellation rate", "attrition"]
+    calculation: "COUNT(canceled_at) / COUNT(*) WHERE status = 'canceled' or 'active'"
+  
+  - name: "Net Revenue Retention"
+    synonyms: ["NRR", "revenue retention"]
+    calculation: "SUM(monthly_price current period) / SUM(monthly_price previous period)"
+  
+  - name: "Customer Acquisition Cost"
+    synonyms: ["CAC", "acquisition cost"]
+    calculation: "Total Marketing Spend / New Customers Acquired"
+  
+  - name: "User Engagement"
+    synonyms: ["activity level", "user activity", "engagement score"]
+    calculation: "COUNT(events) per user / time period"
+  
+  - name: "Invoice Collection Rate"
+    synonyms: ["payment rate", "invoice payment", "collection efficiency"]
+    calculation: "COUNT(paid_at IS NOT NULL) / COUNT(*) FROM invoices"
