@@ -1,0 +1,325 @@
+version: 1
+source: "WSC Sports Weekly Report"
+date_created: "[DATE]"
+
+tables:
+  - name: weekly_team_metrics
+    description: |
+      Weekly performance metrics for sports teams' video content creation, distribution,
+      and audience engagement. Tracks automation adoption, content creation methods,
+      and social media publishing patterns. Each row represents one team's activity
+      for one week, with separate records for each language version.
+      
+    synonyms:
+      - team_weekly_report
+      - content_metrics
+      - engagement_report
+      - team_performance_weekly
+      
+    columns:
+      - name: league
+        description: |
+          League or competition name with identifier
+          Example: "Belgian Pro League (ID 951)"
+        data_type: text
+        synonyms:
+          - league_name
+          - competition
+          - competition_id
+          
+      - name: team
+        description: |
+          Team name with language version suffix and unique identifier
+          Format: "Team Name - LANGUAGE (ID xxxxx)"
+          Suffixes:
+            - "Clean" = Original/unbranded version
+            - "FR" = French language localization
+            - "NL" = Dutch language localization
+            - "EN" = English language localization
+        data_type: text
+        note: |
+          Each team appears 3-4 times per week (one per language version)
+          This is intentional - allows market-specific engagement tracking
+        synonyms:
+          - team_name
+          - team_identifier
+          - squad
+          
+      - name: week_of_date
+        description: |
+          Week identifier in format "Month Date, Year"
+          Example: "October 27, 2025"
+          Represents the Sunday of that week
+        data_type: text
+        note: "Weekly data - one record per team per week"
+        synonyms:
+          - week_date
+          - report_week
+          - reporting_period
+          
+      - name: total_videousers
+        description: |
+          Number of unique viewers of this team's video content during the week
+          Represents audience engagement with published video
+        data_type: integer
+        unit: "count (unique users)"
+        null_meaning: |
+          NOT a data quality issue
+          Null = Team did not publish video content that week
+          This is feature data, not missing data
+        note: |
+          Only populated when team actually creates and publishes video
+          Shows content creation frequency and audience size
+        synonyms:
+          - videousers
+          - viewers
+          - video_audience
+          - unique_viewers
+          - video_viewers
+          
+      - name: avgen_videousers
+        description: |
+          Number of viewers of content created using AVGen (Automated Video Generation)
+          Measures engagement with automatically-generated video clips
+        data_type: integer
+        unit: "count (unique users)"
+        product: "AVGen - Automated Video Generation Tool"
+        note: |
+          Adoption status should be monitored
+          Low adoption could indicate tool issues or feature requests needed
+          
+        synonyms:
+          - avgen_viewers
+          - automation_videousers
+          - automated_video_users
+          
+      - name: clipro_videousers
+        description: |
+          Number of viewers of content created using Clipro (Semi-automated Clipping Tool)
+          Measures engagement with semi-automatically-generated video clips
+        data_type: integer
+        unit: "count (unique users)"
+        product: "Clipro - Semi-Automated Clip Generation Tool"
+        note: |
+          Semi-automated tool positioned between manual and fully automated
+          Track adoption growth over time
+        synonyms:
+          - clipro_viewers
+          - clip_videousers
+          - clipped_video_users
+          
+      - name: manual_clipit
+        description: |
+          Number of video clips manually created by team staff
+          Represents manual content creation (not automated)
+        data_type: integer
+        unit: "count (number of clips)"
+        tool: "Manual creation - no automation"
+        note: |
+          Most established content creation method
+          Compare adoption rates with automated tools over time
+        synonyms:
+          - manual_clips
+          - manually_created_clips
+          - staff_created_clips
+          
+      - name: automation_percentage
+        description: |
+          Percentage of this team's content created via automation (vs manual)
+          Measures automation adoption rate for this team
+        data_type: numeric
+        unit: "percentage (0-100%)"
+        range: "0 to 100"
+        should_contain: |
+          When automation is used:
+            automation_percentage = (avgen + clipro) / (avgen + clipro + manual) * 100
+          
+        importance: "Critical for understanding automation adoption curve"
+        
+        synonyms:
+          - automation_rate
+          - auto_rate
+          - automated_content_percentage
+          
+      - name: total_exports
+        description: |
+          Total number of content items exported/prepared during the week
+          Represents content in internal pipeline ready for publishing
+        data_type: integer
+        unit: "count (number of exports)"
+        pipeline_stage: "Preparation/Library Stage (not yet public)"
+        
+        interpretation: |
+          This could indicate:
+            1. High editorial standards (very selective publishing)
+            2. Building internal content library
+            3. Multi-channel distribution (exports going to email, website, app)
+            4. Strategic batch processing before publishing
+          
+        synonyms:
+          - exports
+          - content_exports
+          - exported_items
+          - content_prepared
+          
+      - name: social_publishes
+        description: |
+          Number of content items actually published to social media (public distribution)
+          Represents final step of content pipeline before audience sees it
+        data_type: integer
+        unit: "count (number of posts)"
+        pipeline_stage: "Distribution Stage (publicly visible)"
+        
+        interpretation: |
+          Only content that passes quality/editorial standards gets published
+          Typically less than total_exports due to selectivity or strategic scheduling
+          
+        synonyms:
+          - social_posts
+          - published_items
+          - social_media_publishes
+          - public_posts
+
+business_metrics:
+  - name: "Content Creation Rate"
+    description: "Percentage of weeks a team publishes video content"
+    calculation: "COUNT(total_videousers IS NOT NULL) / Total Weeks * 100"
+    interpretation: |
+      Measures how frequently teams publish video content
+      Compare across teams to identify active vs inactive publishers
+    
+  - name: "Automation Adoption Rate"
+    description: "What percentage of teams use AVGen automation"
+    calculation: "COUNT(DISTINCT team WHERE avgen_videousers > 0) / Total Teams"
+    importance: "Critical for understanding automation tool adoption"
+    
+  - name: "Tool Usage Mix"
+    description: "How content is created (manual vs semi-auto vs fully auto)"
+    calculation: |
+      - Manual %: manual_clipit / (manual_clipit + clipro + avgen) * 100
+      - Clipro %: clipro / (manual_clipit + clipro + avgen) * 100
+      - AVGen %: avgen / (manual_clipit + clipro + avgen) * 100
+    interpretation: |
+      Shows adoption curve for new tools
+      Track over time to see if automation adoption is growing
+    
+  - name: "Content Pipeline Efficiency"
+    description: "Export to publish conversion ratio"
+    calculation: "Total Exports / Social Publishes"
+    interpretation: "Shows selectivity in publishing strategy"
+    
+  - name: "Team Activity Level"
+    description: "How frequently each team creates content"
+    categories: |
+      - Very Active: High percentage of weeks with video
+      - Moderate: Moderate percentage of weeks with video
+      - Inactive: Low percentage of weeks with video
+    use_case: "Segment teams and tailor support by category"
+
+relationships:
+  - from: team
+    to: league
+    type: "belongs_to"
+    description: "Each team belongs to one league"
+    
+  - from: team
+    to: language_version
+    type: "has_many"
+    cardinality: "1 team : 3-4 language versions"
+    description: "Each team has separate metrics for each language"
+    
+  - from: week_of_date
+    to: team
+    type: "references"
+    cardinality: "1 week : many teams"
+    description: "Weekly metrics aggregated across teams"
+    
+  - from: total_exports
+    to: social_publishes
+    type: "pipeline"
+    cardinality: "1 export may lead to 0 or 1 publish"
+    description: |
+      Content export (preparation) typically leads to selective publishing
+      Not all exports become publishes (editorial control)
+
+data_quality_notes:
+  - |
+    EMPTY FIELDS ARE NOT NECESSARILY DATA QUALITY ISSUES
+    Example: null total_videousers when team didn't publish video
+    This indicates missing activity, not missing data
+    
+  - |
+    ADOPTION METRICS
+    Some metrics track optional features (automation, advanced clipping tools)
+    Low adoption doesn't indicate data quality issue
+    Instead indicates feature adoption phase or feature requests
+    
+  - |
+    MULTI-LANGUAGE COMPLEXITY
+    Each team appears multiple times per reporting period (different languages)
+    This is intentional market segmentation
+    Not data duplication - track separately for market insights
+
+data_dictionary:
+  language_versions:
+    clean: "Original/unbranded version - base for all market"
+    fr: "French language - Belgium/France market"
+    nl: "Dutch language - Belgium/Netherlands market"
+    en: "English language - international/English-speaking market"
+    
+  content_pipeline_stages:
+    stage1: "Content Creation (manual, AVGen, or Clipro)"
+    stage2: "Export (prepared, in internal library)"
+    stage3: "Social Publish (publicly distributed)"
+    
+  team_activity_levels:
+    very_active: "80%+ of weeks with video content published"
+    moderate: "30-80% of weeks with video published"
+    inactive: "<30% of weeks with video published"
+
+recommendations:
+  - |
+    Track Automation Metrics
+    Monitor adoption_percentage to understand transition to automated tools
+    This metric should be captured for all content creation events
+    
+  - |
+    Monitor Tool Adoption Over Time
+    Compare usage rates of manual vs semi-automated vs fully automated tools
+    Track adoption curve to understand tool effectiveness
+    
+  - |
+    Segment Teams by Activity Level
+    Create tier-based support/training strategy
+    Different activity levels need different resources
+    
+  - |
+    Analyze Content Pipeline
+    Understand relationship between exports and publishes
+    Identify optimal publishing cadence for engagement
+    
+  - |
+    Market-Specific Analysis
+    Analyze performance by language version
+    Guide content localization strategy
+
+analysis_opportunities:
+  - |
+    Question: Which language version performs best?
+    Why: Understand market-specific preferences
+    Impact: Guide localization strategy
+    
+  - |
+    Question: What's the export to publish ratio?
+    Why: Understand content strategy and efficiency
+    Impact: Optimize publishing cadence
+    
+  - |
+    Question: Are automated clips as engaging as manual clips?
+    Why: Justify automation investment
+    Impact: Guide tool adoption strategy
+    
+  - |
+    Question: What makes high-performing teams different?
+    Why: Replicate success across teams
+    Impact: Increase overall platform value
