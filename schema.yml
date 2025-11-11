@@ -355,6 +355,153 @@ models:
           - paid_date
           - settlement_date
 
+  - name: marketing_touchpoints
+    description: |
+      Marketing touchpoints table. Records customer interactions with marketing campaigns and channels.
+      Tracks when and how customers were reached through various marketing channels.
+      Enables campaign performance analysis and customer journey tracking.
+    synonyms:
+      - marketing_interactions
+      - campaign_touchpoints
+      - customer_interactions
+      - marketing_events
+      - campaign_engagements
+    columns:
+      - name: id
+        description: Unique identifier for the marketing touchpoint (UUID)
+        data_type: uuid
+        synonyms:
+          - touchpoint_id
+          - interaction_id
+          - event_id
+        constraints:
+          - type: primary_key
+          - type: not_null
+      - name: org_id
+        description: Foreign key reference to the account/organization that was touched
+        data_type: uuid
+        synonyms:
+          - account_id
+          - organization_id
+          - company_id
+          - customer_id
+        constraints:
+          - type: foreign_key
+            reference_table: accounts
+            reference_column: id
+            on_delete: CASCADE
+      - name: campaign
+        description: Name or identifier of the marketing campaign (e.g., Q4_Launch, Summer_Promo)
+        data_type: text
+        synonyms:
+          - campaign_name
+          - campaign_id
+          - promotion_name
+          - marketing_campaign
+      - name: channel
+        description: |
+          Marketing channel through which the touchpoint occurred 
+          (e.g., email, social, paid_ads, organic_search, direct_mail, webinar)
+        data_type: text
+        synonyms:
+          - marketing_channel
+          - channel_name
+          - touchpoint_channel
+          - medium
+      - name: touched_at
+        description: Timestamp when the marketing touchpoint occurred
+        data_type: timestamp with time zone
+        synonyms:
+          - interaction_date
+          - engagement_date
+          - timestamp
+          - created_at
+          - occurred_at
+
+  - name: support_tickets
+    description: |
+      Support tickets table. Records customer support requests and issues.
+      Tracks ticket lifecycle from creation to resolution, including ticket category, status, and resolution time.
+      Enables customer support metrics tracking, SLA monitoring, and support team performance analysis.
+    synonyms:
+      - tickets
+      - support_cases
+      - help_requests
+      - customer_issues
+      - support_requests
+      - support_cases
+    columns:
+      - name: id
+        description: Unique identifier for the support ticket (UUID)
+        data_type: uuid
+        synonyms:
+          - ticket_id
+          - case_id
+          - issue_id
+          - support_id
+        constraints:
+          - type: primary_key
+          - type: not_null
+      - name: org_id
+        description: Foreign key reference to the account/organization that created the ticket
+        data_type: uuid
+        synonyms:
+          - account_id
+          - organization_id
+          - company_id
+          - customer_id
+        constraints:
+          - type: foreign_key
+            reference_table: accounts
+            reference_column: id
+            on_delete: CASCADE
+      - name: opened_by
+        description: Foreign key reference to the user who opened the ticket (nullable - may be system-generated)
+        data_type: uuid
+        synonyms:
+          - created_by
+          - requester_id
+          - user_id
+          - reporter_id
+      - name: status
+        description: |
+          Current status of the support ticket 
+          (e.g., open, in_progress, waiting_on_customer, resolved, closed, reopened)
+        data_type: text
+        synonyms:
+          - ticket_status
+          - state
+          - ticket_state
+          - resolution_status
+      - name: category
+        description: |
+          Category or type of support ticket 
+          (e.g., billing, technical, feature_request, bug_report, general_inquiry, onboarding)
+        data_type: text
+        synonyms:
+          - ticket_category
+          - issue_type
+          - ticket_type
+          - issue_category
+          - support_type
+      - name: opened_at
+        description: Timestamp when the support ticket was opened
+        data_type: timestamp with time zone
+        synonyms:
+          - created_at
+          - ticket_creation_date
+          - opened_date
+          - created_date
+      - name: closed_at
+        description: Timestamp when the support ticket was closed (null if still open or unresolved)
+        data_type: timestamp with time zone
+        synonyms:
+          - resolved_at
+          - closed_date
+          - resolution_date
+          - completed_at
+          - settled_at
+
 relationships:
   - from_model: users
     from_column: org_id
@@ -392,19 +539,44 @@ relationships:
     to_column: id
     description: Each invoice is associated with a subscription
 
+  - from_model: marketing_touchpoints
+    from_column: org_id
+    to_model: accounts
+    to_column: id
+    description: Each marketing touchpoint is associated with an account
+
+  - from_model: support_tickets
+    from_column: org_id
+    to_model: accounts
+    to_column: id
+    description: Each support ticket belongs to an account
+
+  - from_model: support_tickets
+    from_column: opened_by
+    to_model: users
+    to_column: id
+    description: Each support ticket is opened by a user (optional, may be system-generated)
+
 notes: |
   Schema Overview:
   - Accounts are the top-level organizational unit
   - Users and Events are associated with Accounts
   - Subscriptions link Accounts to Products
   - Invoices are generated from Subscriptions
-  - Deletion is cascading from Accounts to Users, Events, and Subscriptions
+  - Marketing Touchpoints track customer interactions with accounts
+  - Support Tickets track customer support requests and issues
+  - Deletion is cascading from Accounts to Users, Events, Subscriptions, Marketing Touchpoints, and Support Tickets
 
   Data Quality Notes:
   - Most columns are nullable; consider adding NOT NULL constraints where appropriate
   - Subscription.product_id lacks an explicit foreign key constraint
   - Consider adding unique constraints on emails or account names if needed
   - Event timestamps (occurred_at) may have timezone implications depending on storage requirements
+  - Marketing_touchpoints.touched_at should use consistent timezone (UTC recommended)
+  - Support_tickets.opened_by may be NULL for system-generated tickets
+  - Support_tickets.closed_at will be NULL for open/unresolved tickets
+  - Campaign and channel names should be standardized for accurate reporting
+  - Support ticket status and category values should be standardized
 
 common_business_questions:
   - question: "How many customers/organizations do we have?"
@@ -527,6 +699,139 @@ common_business_questions:
       GROUP BY product_id
       ORDER BY subscription_count DESC;
 
+  - question: "Which marketing channels drive the most touchpoints?"
+    synonyms:
+      - "top marketing channels"
+      - "most active channels"
+      - "best performing channels"
+    query_pattern: |
+      SELECT 
+        channel,
+        COUNT(*) as touchpoint_count,
+        COUNT(DISTINCT org_id) as unique_accounts
+      FROM marketing_touchpoints
+      GROUP BY channel
+      ORDER BY touchpoint_count DESC;
+
+  - question: "How many accounts were touched by each campaign?"
+    synonyms:
+      - "campaign reach"
+      - "accounts per campaign"
+      - "campaign performance"
+      - "campaign engagement count"
+    query_pattern: |
+      SELECT 
+        campaign,
+        COUNT(DISTINCT org_id) as accounts_touched,
+        COUNT(*) as total_touchpoints
+      FROM marketing_touchpoints
+      GROUP BY campaign
+      ORDER BY accounts_touched DESC;
+
+  - question: "What's the most recent marketing touchpoint for each account?"
+    synonyms:
+      - "last marketing interaction"
+      - "most recent campaign"
+      - "latest touchpoint per account"
+    query_pattern: |
+      SELECT 
+        a.name as account_name,
+        mt.campaign,
+        mt.channel,
+        mt.touched_at,
+        DATEDIFF(day, mt.touched_at, NOW()) as days_since_touchpoint
+      FROM marketing_touchpoints mt
+      JOIN accounts a ON mt.org_id = a.id
+      WHERE mt.touched_at = (
+        SELECT MAX(touched_at) 
+        FROM marketing_touchpoints 
+        WHERE org_id = mt.org_id
+      )
+      ORDER BY mt.touched_at DESC;
+
+  - question: "How many open support tickets do we have?"
+    synonyms:
+      - "open tickets"
+      - "pending support cases"
+      - "unresolved tickets"
+      - "active support tickets"
+    query_pattern: |
+      SELECT 
+        COUNT(*) as open_tickets,
+        COUNT(DISTINCT org_id) as accounts_with_open_tickets
+      FROM support_tickets
+      WHERE status != 'closed'
+        AND closed_at IS NULL;
+
+  - question: "What are the most common support ticket categories?"
+    synonyms:
+      - "top ticket types"
+      - "support issue categories"
+      - "most common issues"
+      - "ticket type breakdown"
+    query_pattern: |
+      SELECT 
+        category,
+        COUNT(*) as ticket_count,
+        ROUND(100.0 * COUNT(*) / (SELECT COUNT(*) FROM support_tickets), 2) as pct_of_total
+      FROM support_tickets
+      GROUP BY category
+      ORDER BY ticket_count DESC;
+
+  - question: "What's the average time to resolve support tickets?"
+    synonyms:
+      - "average resolution time"
+      - "mean time to resolution"
+      - "MTTR"
+      - "ticket resolution time"
+      - "average ticket duration"
+    query_pattern: |
+      SELECT 
+        category,
+        COUNT(*) as resolved_tickets,
+        ROUND(AVG(DATE_PART('day', closed_at - opened_at)), 2) as avg_days_to_resolve,
+        MIN(DATE_PART('day', closed_at - opened_at)) as min_days,
+        MAX(DATE_PART('day', closed_at - opened_at)) as max_days
+      FROM support_tickets
+      WHERE closed_at IS NOT NULL
+      GROUP BY category
+      ORDER BY avg_days_to_resolve DESC;
+
+  - question: "Which accounts have the most open support tickets?"
+    synonyms:
+      - "accounts with most issues"
+      - "high support volume customers"
+      - "accounts needing attention"
+      - "problematic customers"
+    query_pattern: |
+      SELECT 
+        a.name as account_name,
+        a.plan,
+        COUNT(*) as total_tickets,
+        COUNT(CASE WHEN st.status != 'closed' AND st.closed_at IS NULL THEN 1 END) as open_tickets,
+        MAX(st.opened_at) as most_recent_ticket
+      FROM support_tickets st
+      JOIN accounts a ON st.org_id = a.id
+      GROUP BY a.id, a.name, a.plan
+      HAVING COUNT(*) > 0
+      ORDER BY open_tickets DESC;
+
+  - question: "How many support tickets were opened this month?"
+    synonyms:
+      - "new tickets this month"
+      - "monthly ticket volume"
+      - "ticket creation rate"
+      - "tickets opened recently"
+    query_pattern: |
+      SELECT 
+        DATE_TRUNC('week', opened_at)::date as week,
+        COUNT(*) as tickets_opened,
+        COUNT(DISTINCT org_id) as accounts_with_tickets
+      FROM support_tickets
+      WHERE opened_at >= DATE_TRUNC('month', NOW())
+      GROUP BY DATE_TRUNC('week', opened_at)
+      ORDER BY week DESC;
+
 common_metrics:
   - name: "ARR (Annual Recurring Revenue)"
     synonyms: ["annual recurring revenue", "yearly revenue"]
@@ -555,6 +860,30 @@ common_metrics:
   - name: "Invoice Collection Rate"
     synonyms: ["payment rate", "invoice payment", "collection efficiency"]
     calculation: "COUNT(paid_at IS NOT NULL) / COUNT(*) FROM invoices"
+
+  - name: "Marketing Reach"
+    synonyms: ["marketing touchpoint coverage", "accounts reached", "audience reach"]
+    calculation: "COUNT(DISTINCT org_id) FROM marketing_touchpoints"
+
+  - name: "Campaign Performance"
+    synonyms: ["campaign engagement", "campaign touchpoints", "marketing performance"]
+    calculation: "COUNT(*) FROM marketing_touchpoints WHERE campaign = 'X' GROUP BY campaign"
+
+  - name: "Support Ticket Volume"
+    synonyms: ["ticket count", "number of tickets", "support requests"]
+    calculation: "COUNT(*) FROM support_tickets"
+
+  - name: "Mean Time To Resolution (MTTR)"
+    synonyms: ["average resolution time", "resolution speed", "ticket resolution time"]
+    calculation: "AVG(DATE_PART('day', closed_at - opened_at)) FROM support_tickets WHERE closed_at IS NOT NULL"
+
+  - name: "Support Ticket Resolution Rate"
+    synonyms: ["ticket closure rate", "resolution percentage", "tickets resolved"]
+    calculation: "COUNT(closed_at IS NOT NULL) / COUNT(*) FROM support_tickets"
+
+  - name: "Open Support Tickets"
+    synonyms: ["pending tickets", "unresolved tickets", "active support cases"]
+    calculation: "COUNT(*) FROM support_tickets WHERE closed_at IS NULL"
 
 sql_style_guide: |
   ## SQL Formatting Guidelines
