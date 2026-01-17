@@ -1,0 +1,191 @@
+version: 2
+
+metrics:
+  # ============================================================================
+  # REVENUE METRICS
+  # ============================================================================
+  - name: mrr
+    label: "MRR"
+    description: "Monthly Recurring Revenue. The sum of monthly prices for all currently active subscriptions."
+    type: simple
+    type_params:
+      measure: mrr_sum
+    synonyms:
+      - "monthly revenue"
+      - "monthly recurring revenue"
+      - "total billing"
+      - "recurring revenue"
+    meta:
+      agent_guidance: "Calculate the sum of 'monthly_price' from the 'subscriptions' table where 'status' is 'active'."
+      source_table: "subscriptions"
+      source_column: "monthly_price"
+      filter: "status = 'active'"
+
+  - name: arr
+    label: "ARR"
+    description: "Annual Recurring Revenue. The annualized value (MRR * 12) of all active subscriptions."
+    type: simple
+    type_params:
+      measure: arr_sum
+    synonyms:
+      - "annual revenue"
+      - "yearly revenue"
+      - "annual recurring revenue"
+      - "run rate"
+    meta:
+      agent_guidance: "Calculate the sum of ('monthly_price' * 12) from the 'subscriptions' table where 'status' is 'active'."
+      source_table: "subscriptions"
+      source_column: "monthly_price"
+      calculation: "monthly_price * 12"
+      filter: "status = 'active'"
+
+  - name: arpa
+    label: "ARPA"
+    description: "Average Revenue Per Account. The average MRR generated per active customer account."
+    type: ratio
+    type_params:
+      numerator: mrr_sum
+      denominator: active_subscription_count
+    synonyms:
+      - "average deal size"
+      - "revenue per customer"
+      - "average revenue"
+      - "price per account"
+    meta:
+      agent_guidance: "Divide the Total MRR (sum of 'monthly_price') by the count of active subscriptions (count of 'id') from the 'subscriptions' table."
+      source_table: "subscriptions"
+      numerator_logic: "SUM(monthly_price) WHERE status = 'active'"
+      denominator_logic: "COUNT(id) WHERE status = 'active'"
+
+  # ============================================================================
+  # GROWTH & RETENTION METRICS
+  # ============================================================================
+  - name: churn_rate
+    label: "Logo Churn Rate"
+    description: "The percentage of subscriptions that have been canceled relative to the active customer base."
+    type: ratio
+    type_params:
+      numerator: churned_subscription_count
+      denominator: active_subscription_count
+    synonyms:
+      - "churn"
+      - "cancellation rate"
+      - "attrition"
+      - "logo churn"
+      - "customer churn"
+    meta:
+      agent_guidance: "Divide the count of canceled subscriptions by the count of active subscriptions from the 'subscriptions' table."
+      source_table: "subscriptions"
+      numerator_logic: "COUNT(id) WHERE status = 'canceled'"
+      denominator_logic: "COUNT(id) WHERE status = 'active'"
+
+  - name: new_logos
+    label: "New Logos"
+    description: "The number of new client accounts created within the specified time period."
+    type: simple
+    type_params:
+      measure: new_accounts_count
+    synonyms:
+      - "new customers"
+      - "acquisitions"
+      - "new signups"
+      - "account growth"
+    meta:
+      agent_guidance: "Count the number of unique 'id' values from the 'accounts' table based on their 'created_at' timestamp."
+      source_table: "accounts"
+      source_column: "id"
+      time_dimension: "created_at"
+
+  # ============================================================================
+  # USAGE & ENGAGEMENT METRICS
+  # ============================================================================
+  - name: dau
+    label: "DAU (Daily Active Users)"
+    description: "Count of unique users who have triggered at least one event in the last 24 hours."
+    type: simple
+    type_params:
+      measure: daily_active_users
+    synonyms:
+      - "daily active users"
+      - "daily users"
+      - "active members"
+      - "daily traffic"
+    meta:
+      agent_guidance: "Count distinct 'user_id' from the 'events' table where 'occurred_at' is within the current day."
+      source_table: "events"
+      source_column: "user_id"
+      calculation: "COUNT(DISTINCT user_id)"
+      time_dimension: "occurred_at"
+
+  - name: events_per_account
+    label: "Engagement Intensity"
+    description: "The average number of system events triggered per active account."
+    type: ratio
+    type_params:
+      numerator: total_events
+      denominator: active_subscription_count
+    synonyms:
+      - "activity level"
+      - "usage intensity"
+      - "average engagement"
+      - "events per customer"
+    meta:
+      agent_guidance: "Divide the total count of 'id' from the 'events' table by the count of active subscriptions."
+      numerator_source: "events table (count of id)"
+      denominator_source: "subscriptions table (count of id where status = 'active')"
+
+  # ============================================================================
+  # SUPPORT & OPERATIONS METRICS
+  # ============================================================================
+  - name: mttr_days
+    label: "MTTR (Days)"
+    description: "Mean Time To Resolution. The average number of days it takes to close a support ticket."
+    type: ratio
+    type_params:
+      numerator: total_resolution_days
+      denominator: tickets_resolved_count
+    synonyms:
+      - "average resolution time"
+      - "resolution speed"
+      - "time to close"
+      - "support efficiency"
+    meta:
+      agent_guidance: "Calculate the average difference in days between 'closed_at' and 'opened_at' for all support tickets where 'closed_at' is not null."
+      source_table: "support_tickets"
+      calculation: "AVG(DATE_PART('day', closed_at - opened_at))"
+      filter: "closed_at IS NOT NULL"
+
+  - name: support_volume
+    label: "Support Ticket Volume"
+    description: "The total number of support tickets created."
+    type: simple
+    type_params:
+      measure: total_tickets
+    synonyms:
+      - "ticket count"
+      - "support volume"
+      - "number of issues"
+      - "help requests"
+    meta:
+      agent_guidance: "Count the number of 'id' values in the 'support_tickets' table."
+      source_table: "support_tickets"
+      source_column: "id"
+
+  # ============================================================================
+  # MARKETING METRICS
+  # ============================================================================
+  - name: marketing_reach
+    label: "Marketing Reach"
+    description: "The number of unique accounts that have interacted with a marketing touchpoint."
+    type: simple
+    type_params:
+      measure: unique_accounts_touched
+    synonyms:
+      - "accounts reached"
+      - "marketing coverage"
+      - "touchpoint reach"
+    meta:
+      agent_guidance: "Count distinct 'org_id' from the 'marketing_touchpoints' table."
+      source_table: "marketing_touchpoints"
+      source_column: "org_id"
+      calculation: "COUNT(DISTINCT org_id)"
